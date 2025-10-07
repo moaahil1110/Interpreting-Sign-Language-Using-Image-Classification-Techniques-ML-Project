@@ -1,2 +1,4 @@
 # Interpreting-Sign-Language-Using-Image-Classification-Techniques-ML-Project
-Communication between the deaf community and the general public remains a significant challenge due to limited understanding and accessibility of American Sign Language (ASL).
+### Communication between the deaf community and the general public remains a significant challenge due to limited understanding and accessibility of American Sign Language (ASL).
+### Current tools for ASL recognition often require complex feature extraction, video streams, or specialized hardware, making them impractical for real-time, widespread use. The challenge is to develop an image-based system capable of accurately classifying ASL fingerspelling gestures from static images-using techniques like convolutional neural networks (CNNs)-to lay the groundwork for a robust, real-time sign language translator. 
+### Such a system could greatly improve accessibility and inclusivity by enabling seamless communication through widely available devices like smartphones.
