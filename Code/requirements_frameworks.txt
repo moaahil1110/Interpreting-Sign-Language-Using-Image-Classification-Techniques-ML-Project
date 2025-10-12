@@ -1,0 +1,32 @@
+# ASL Alphabet CNN Model Requirements - PyTorch & TensorFlow
+
+# Core ML/DL libraries - PyTorch
+torch>=1.12.0
+torchvision>=0.13.0
+torchaudio>=0.12.0
+
+# Core ML/DL libraries - TensorFlow (1.x for pure TF implementation)
+tensorflow==1.15.0  # For pure TensorFlow implementation
+# OR use TensorFlow 2.x (uncomment below and comment above)
+# tensorflow>=2.8.0
+
+# Common dependencies
+numpy>=1.21.0
+opencv-python>=4.6.0
+matplotlib>=3.5.0
+seaborn>=0.11.0
+scikit-learn>=1.1.0
+pandas>=1.4.0
+
+# Image processing
+Pillow>=9.0.0
+
+# Progress bars and utilities
+tqdm>=4.64.0
+
+# Jupyter notebook support (optional)
+jupyter>=1.0.0
+ipywidgets>=7.6.0
+
+# Additional utilities
+argparse
