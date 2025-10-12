@@ -1,0 +1,33 @@
+# Model files (too large for GitHub)
+*.pth
+best_asl_model_rtx4060_optimized.pth
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Data directories
+data/
+datasets/
+*.csv
+*.zip
