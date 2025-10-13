@@ -17,7 +17,7 @@ from tqdm import tqdm
 from PIL import Image
 
 # Import model and dataset classes from training script
-from asl_training_pytorch import EfficientASLNet, OptimizedASLTransferLearningNet, ASLDataset, optimize_cuda_settings
+from asl_training_pytorch import EfficientASLNet, ASLDataset, optimize_cuda_settings
 
 def main():
     import argparse
@@ -43,12 +43,8 @@ def main():
     class_names = checkpoint.get('class_names')
     num_classes = len(class_names)
 
-    try:
-        model = EfficientASLNet(num_classes=num_classes)
-        model.load_state_dict(checkpoint['model_state_dict'])
-    except Exception:
-        model = OptimizedASLTransferLearningNet(num_classes=num_classes, backbone='efficientnet_b2')
-        model.load_state_dict(checkpoint['model_state_dict'])
+    model = EfficientASLNet(num_classes=num_classes)
+    model.load_state_dict(checkpoint['model_state_dict'])
     model = model.to(device)
     model.eval()
 

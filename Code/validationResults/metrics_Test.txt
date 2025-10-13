@@ -1,0 +1,36 @@
+Test set: /home/worm/A/ML/mlproj/Datasets/TestNew
+Accuracy: 84.90%
+Macro F1: 0.8407
+Micro F1: 0.8490
+Weighted F1: 0.8431
+
+Per-class metrics:
+A: Precision=0.8919, Recall=0.9429, F1=0.9167
+B: Precision=0.8889, Recall=0.9143, F1=0.9014
+C: Precision=0.8571, Recall=0.8571, F1=0.8571
+D: Precision=0.9200, Recall=0.6571, F1=0.7667
+E: Precision=0.8919, Recall=0.9429, F1=0.9167
+F: Precision=0.9444, Recall=0.9714, F1=0.9577
+G: Precision=0.7381, Recall=0.8857, F1=0.8052
+H: Precision=0.8889, Recall=0.9143, F1=0.9014
+I: Precision=0.8710, Recall=0.7714, F1=0.8182
+J: Precision=0.8718, Recall=0.9714, F1=0.9189
+K: Precision=0.8108, Recall=0.8571, F1=0.8333
+L: Precision=0.8462, Recall=0.9429, F1=0.8919
+M: Precision=0.7073, Recall=0.8286, F1=0.7632
+N: Precision=0.6571, Recall=0.6571, F1=0.6571
+O: Precision=0.7857, Recall=0.9429, F1=0.8571
+P: Precision=0.9459, Recall=1.0000, F1=0.9722
+Q: Precision=0.7609, Recall=1.0000, F1=0.8642
+R: Precision=0.9655, Recall=0.8000, F1=0.8750
+S: Precision=0.8378, Recall=0.8857, F1=0.8611
+T: Precision=0.6458, Recall=0.8857, F1=0.7470
+U: Precision=0.8421, Recall=0.9143, F1=0.8767
+V: Precision=0.8824, Recall=0.8571, F1=0.8696
+W: Precision=0.9697, Recall=0.9143, F1=0.9412
+X: Precision=0.8684, Recall=0.9429, F1=0.9041
+Y: Precision=0.8462, Recall=0.9429, F1=0.8919
+Z: Precision=0.9565, Recall=0.6286, F1=0.7586
+del: Precision=1.0000, Recall=0.8667, F1=0.9286
+nothing: Precision=1.0000, Recall=0.3000, F1=0.4615
+space: Precision=1.0000, Recall=0.5000, F1=0.6667
