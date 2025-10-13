@@ -1,5 +1,5 @@
 """
-🤟 ASL Alphabet Recognition Dashboard
+ASL Alphabet Recognition Dashboard
 Real-time American Sign Language Recognition System
 Powered by Deep Learning & PyTorch
 """
@@ -19,7 +19,7 @@ import pandas as pd
 # Page configuration
 st.set_page_config(
     page_title="ASL Alphabet Recognition",
-    page_icon="🤟",
+    page_icon=None,
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -45,45 +45,45 @@ st.markdown("""
         transform: scale(1.05);
     }
     .prediction-box {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: #222;
         padding: 2rem;
         border-radius: 15px;
         text-align: center;
-        color: white;
-        font-size: 4rem;
+        color: #fafafa;
+        font-size: 3rem;
         font-weight: bold;
         margin: 1rem 0;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.12);
     }
     .confidence-box {
-        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        background: #333;
         padding: 1.5rem;
         border-radius: 15px;
         text-align: center;
-        color: white;
-        font-size: 2rem;
+        color: #fafafa;
+        font-size: 1.5rem;
         margin: 1rem 0;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.12);
     }
     .stats-box {
-        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        background: #444;
         padding: 1rem;
         border-radius: 10px;
         text-align: center;
-        color: white;
+        color: #fafafa;
         margin: 0.5rem 0;
     }
     .info-box {
-        background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+        background: #222;
         padding: 1rem;
         border-radius: 10px;
-        color: white;
+        color: #fafafa;
         margin: 1rem 0;
     }
     h1 {
-        color: #667eea;
+        color: #222;
         text-align: center;
-        font-size: 3rem;
+        font-size: 2.2rem;
         margin-bottom: 1rem;
     }
     .stTabs [data-baseweb="tab-list"] {
@@ -93,7 +93,19 @@ st.markdown("""
         padding: 1rem 2rem;
         background-color: #f0f2f6;
         border-radius: 10px;
-    }
+            color: #333 !important;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+        }
+        .stTabs [data-baseweb="tab"] svg {
+            fill: #667eea !important;
+            margin-right: 0.5rem;
+        }
+        .stTabs [data-baseweb="tab"]:hover {
+            background-color: #e0e7ff;
+            color: #764ba2 !important;
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -161,7 +173,6 @@ def create_confidence_chart(probabilities, top_n=5):
         text=[f'{p:.1f}%' for p in probs],
         textposition='auto',
     ))
-    
     fig.update_layout(
         title="Top 5 Predictions",
         xaxis_title="Confidence (%)",
@@ -171,7 +182,6 @@ def create_confidence_chart(probabilities, top_n=5):
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
     )
-    
     return fig
 
 
@@ -197,13 +207,12 @@ def create_history_chart(history):
 
 
 # Main App Header
-st.markdown("<h1>🤟 ASL Alphabet Recognition</h1>", unsafe_allow_html=True)
+st.markdown("<h1>ASL Alphabet Recognition</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #666; font-size: 1.2rem;'>Real-time American Sign Language Interpreter powered by Deep Learning</p>", unsafe_allow_html=True)
 
 # Sidebar Configuration
 with st.sidebar:
-    st.image("https://raw.githubusercontent.com/microsoft/vscode-icons/main/icons/file_type_ai.svg", width=100)
-    st.header("⚙️ Configuration")
+    st.header("Configuration")
     
     # Model settings
     st.subheader("Model Settings")
@@ -212,14 +221,12 @@ with st.sidebar:
         value="../best_asl_model_rtx4060_optimized.pth",
         help="Path to your trained .pth model file"
     )
-    
     device = st.selectbox(
         "Device",
         options=['cuda', 'cpu'],
         index=0 if torch.cuda.is_available() else 1,
         help="Select GPU (cuda) or CPU for inference"
     )
-    
     smoothing_window = st.slider(
         "Prediction Smoothing",
         min_value=1,
@@ -227,7 +234,6 @@ with st.sidebar:
         value=5,
         help="Number of frames to smooth predictions (higher = more stable)"
     )
-    
     confidence_threshold = st.slider(
         "Confidence Threshold",
         min_value=0.0,
@@ -236,9 +242,8 @@ with st.sidebar:
         step=0.05,
         help="Minimum confidence to accept predictions"
     )
-    
     # Load model button
-    if st.button("🚀 Load Model"):
+    if st.button("Load Model"):
         with st.spinner("Loading model..."):
             engine, success, message = load_model(
                 model_path, device, smoothing_window, confidence_threshold
@@ -252,14 +257,16 @@ with st.sidebar:
     
     # Camera settings
     st.subheader("Camera Settings")
-    camera_id = st.number_input(
-        "Camera ID",
-        min_value=0,
-        max_value=10,
-        value=0,
-        help="Camera device ID (usually 0 for default camera)"
-    )
-    
+    if st.session_state.get('camera_active', False):
+        camera_id = st.number_input(
+            "Camera ID",
+            min_value=0,
+            max_value=10,
+            value=0,
+            help="Camera device ID (usually 0 for default camera)"
+        )
+    else:
+        camera_id = 0
     roi_size = st.slider(
         "ROI Size",
         min_value=200,
@@ -285,7 +292,7 @@ if not st.session_state.model_loaded:
     with col2:
         st.markdown("""
         <div class="info-box">
-            <h2 style='text-align: center; margin-top: 0;'>👋 Welcome!</h2>
+            <h2 style='text-align: center; margin-top: 0;'>Welcome</h2>
             <p style='text-align: center; font-size: 1.1rem; margin-bottom: 0;'>
                 Please load the ASL recognition model from the sidebar to get started.
             </p>
@@ -293,22 +300,22 @@ if not st.session_state.model_loaded:
         """, unsafe_allow_html=True)
         
         st.markdown("""
-        ### 📋 How to Use:
-        1. **Load Model**: Click "🚀 Load Model" in the sidebar
-        2. **Start Camera**: Navigate to the "Live Camera" tab
-        3. **Show Hand Signs**: Place your hand in the green ROI box
-        4. **View Results**: See real-time predictions and confidence scores
+    ### How to Use:
+    1. **Load Model**: Click "Load Model" in the sidebar
+    2. **Start Camera**: Navigate to the "Live Camera" tab
+    3. **Show Hand Signs**: Place your hand in the green ROI box
+    4. **View Results**: See real-time predictions and confidence scores
         
-        ### 🎯 Features:
-        - ✨ Real-time ASL alphabet recognition
-        - 📊 Live confidence metrics and visualizations
-        - 📸 Image upload support
-        - 📈 Prediction history tracking
-        - 🎨 Beautiful, intuitive interface
+    ### Features:
+    - Real-time ASL alphabet recognition
+    - Live confidence metrics and visualizations
+    - Image upload support
+    - Prediction history tracking
+    - Minimal, intuitive interface
         """)
 else:
     # Create tabs for different modes
-    tab1, tab2, tab3 = st.tabs(["📹 Live Camera", "📸 Upload Image", "📊 Statistics"])
+    tab1, tab2, tab3 = st.tabs(["Live Camera", "Upload Image", "Statistics"])
     
     with tab1:
         st.subheader("Real-time ASL Recognition")
@@ -319,11 +326,11 @@ else:
             # Camera control buttons
             btn_col1, btn_col2, btn_col3 = st.columns(3)
             with btn_col1:
-                start_camera = st.button("▶️ Start Camera", width="stretch")
+                start_camera = st.button("Start Camera", width="stretch")
             with btn_col2:
-                stop_camera = st.button("⏹️ Stop Camera", width="stretch")
+                stop_camera = st.button("Stop Camera", width="stretch")
             with btn_col3:
-                reset_btn = st.button("🔄 Reset Buffer", width="stretch")
+                reset_btn = st.button("Reset Buffer", width="stretch")
             
             # Camera feed placeholder
             camera_placeholder = st.empty()
@@ -357,88 +364,76 @@ else:
             engine = st.session_state.inference_engine
             frame_count = 0
             
-            while st.session_state.camera_active:
-                ret, frame = cap.read()
-                if not ret:
-                    st.error("Failed to access camera")
-                    break
-                
-                # Draw ROI and get hand region
-                frame, roi = draw_hand_roi(frame, roi_size)
-                
-                # Make prediction every 3 frames to improve performance
-                if frame_count % 3 == 0 and roi.size > 0:
-                    try:
-                        result = engine.predict(roi, return_probabilities=True)
-                        
-                        # Display prediction
-                        letter = result['smoothed_letter']
-                        confidence = result['confidence'] * 100
-                        
-                        # Update prediction display
-                        prediction_display.markdown(
-                            f"<div class='prediction-box'>{letter}</div>",
-                            unsafe_allow_html=True
-                        )
-                        
-                        confidence_display.markdown(
-                            f"<div class='confidence-box'>{confidence:.1f}%</div>",
-                            unsafe_allow_html=True
-                        )
-                        
-                        # Update chart
-                        chart_display.plotly_chart(
-                            create_confidence_chart(result['probabilities']),
-                            width="stretch"
-                        )
-                        
-                        # Display top 5 predictions
-                        top_5_probs = sorted(zip(result['class_names'], result['probabilities']), 
-                                           key=lambda x: x[1], reverse=True)[:5]
-                        top5_html = "<div style='margin-top: 20px;'><h4 style='color: #333; margin-bottom: 10px;'>📊 Top 5 Predictions:</h4>"
-                        for i, (cls, prob) in enumerate(top_5_probs, 1):
-                            bar_width = int(prob * 100)
-                            color = '#4CAF50' if i == 1 else '#2196F3' if i == 2 else '#FF9800' if i == 3 else '#9C27B0' if i == 4 else '#607D8B'
-                            top5_html += f"""
-                            <div style='margin-bottom: 8px;'>
-                                <div style='display: flex; justify-content: space-between; margin-bottom: 2px;'>
-                                    <span style='font-weight: 500; color: #333;'>{i}. {cls}</span>
-                                    <span style='font-weight: 600; color: {color};'>{prob*100:.1f}%</span>
-                                </div>
-                                <div style='background-color: #f0f0f0; border-radius: 10px; overflow: hidden;'>
-                                    <div style='background-color: {color}; height: 8px; width: {bar_width}%; transition: width 0.3s;'></div>
-                                </div>
-                            </div>
-                            """
-                        top5_html += "</div>"
-                        top5_display.markdown(top5_html, unsafe_allow_html=True)
-                        
-                        # Add to history
-                        st.session_state.prediction_history.append({
-                            'timestamp': datetime.now(),
-                            'letter': letter,
-                            'confidence': confidence
-                        })
-                        
-                        # Overlay prediction on frame
-                        cv2.putText(frame, f"Prediction: {letter}", (10, 50),
-                                   cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 0), 3)
-                        cv2.putText(frame, f"Confidence: {confidence:.1f}%", (10, 100),
-                                   cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                        
-                    except Exception as e:
-                        st.error(f"Prediction error: {str(e)}")
-                
-                # Display frame
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                camera_placeholder.image(frame_rgb, channels="RGB", width="stretch")
-                
-                frame_count += 1
-                
-                # Small delay to prevent excessive CPU usage
-                time.sleep(0.01)
-            
-            cap.release()
+            import warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                while st.session_state.camera_active:
+                    ret, frame = cap.read()
+                    if not ret:
+                        st.error("Failed to access camera")
+                        break
+                    # Draw ROI and get hand region
+                    frame, roi = draw_hand_roi(frame, roi_size)
+                    # Make prediction every 3 frames to improve performance
+                    if frame_count % 3 == 0 and roi.size > 0:
+                        try:
+                            result = engine.predict(roi, return_probabilities=True)
+                            # Display prediction
+                            letter = result.get('smoothed_letter', '?')
+                            confidence = result.get('confidence', 0) * 100
+                            # Update prediction display
+                            prediction_display.markdown(
+                                f"<div class='prediction-box'>{letter}</div>",
+                                unsafe_allow_html=True
+                            )
+                            confidence_display.markdown(
+                                f"<div class='confidence-box'>{confidence:.1f}%</div>",
+                                unsafe_allow_html=True
+                            )
+                            # Update chart
+                            chart_display.plotly_chart(
+                                create_confidence_chart(result.get('probabilities', {})),
+                                config={"displayModeBar": False}
+                            )
+                            # Display top 5 predictions
+                            class_names = result.get('class_names', [])
+                            probabilities = result.get('probabilities', {})
+                            if class_names and probabilities:
+                                top_5_probs = sorted(zip(class_names, [probabilities.get(cls, 0) for cls in class_names]),
+                                                   key=lambda x: x[1], reverse=True)[:5]
+                                top5_html = "<div style='margin-top: 20px;'><h4 style='color: #333; margin-bottom: 10px;'>📊 Top 5 Predictions:</h4>"
+                                for i, (cls, prob) in enumerate(top_5_probs, 1):
+                                    bar_width = int(prob * 100)
+                                    color = '#4CAF50' if i == 1 else '#2196F3' if i == 2 else '#FF9800' if i == 3 else '#9C27B0' if i == 4 else '#607D8B'
+                                    top5_html += f"""
+                                    <div style='margin-bottom: 8px;'>
+                                        <div style='display: flex; justify-content: space-between; margin-bottom: 2px;'>
+                                            <span style='font-weight: 500; color: #333;'>{i}. {cls}</span>
+                                            <span style='font-weight: 600; color: {color};'>{prob*100:.1f}%</span>
+                                        </div>
+                                        <div style='background-color: #f0f0f0; border-radius: 10px; overflow: hidden;'>
+                                            <div style='background-color: {color}; height: 8px; width: {bar_width}%; transition: width 0.3s;'></div>
+                                        </div>
+                                    </div>
+                                    """
+                                top5_html += "</div>"
+                                top5_display.markdown(top5_html, unsafe_allow_html=True)
+                            # Add to history
+                            st.session_state.prediction_history.append({
+                                'timestamp': datetime.now(),
+                                'letter': letter,
+                                'confidence': confidence
+                            })
+                            # ...removed overlay of prediction and confidence on camera feed...
+                        except Exception:
+                            pass  # Suppress prediction errors in GUI
+                    # Display frame
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    camera_placeholder.image(frame_rgb, channels="RGB", width="stretch")
+                    frame_count += 1
+                    # Small delay to prevent excessive CPU usage
+                    time.sleep(0.01)
+                cap.release()
     
     with tab2:
         st.subheader("Upload Image for Recognition")
@@ -455,41 +450,37 @@ else:
             if uploaded_file is not None:
                 image = Image.open(uploaded_file).convert('RGB')
                 st.image(image, caption="Uploaded Image", width="stretch")
-                
-                if st.button("🔍 Analyze Image", width="stretch"):
+                if st.button("Analyze Image", width="stretch"):
                     with st.spinner("Analyzing..."):
-                        result = st.session_state.inference_engine.predict(
-                            image, return_probabilities=True
-                        )
-                        
-                        # Store result in session state
-                        st.session_state.upload_result = result
+                        try:
+                            result = st.session_state.inference_engine.predict(
+                                image, return_probabilities=True
+                            )
+                            st.session_state.upload_result = result
+                        except Exception:
+                            st.session_state.upload_result = None
         
         with col2:
-            if 'upload_result' in st.session_state:
+            if 'upload_result' in st.session_state and st.session_state.upload_result:
                 result = st.session_state.upload_result
-                
                 # Display prediction
                 st.markdown(
-                    f"<div class='prediction-box'>{result['predicted_letter']}</div>",
+                    f"<div class='prediction-box'>{result.get('predicted_letter', '?')}</div>",
                     unsafe_allow_html=True
                 )
-                
                 st.markdown(
-                    f"<div class='confidence-box'>{result['confidence']*100:.1f}%</div>",
+                    f"<div class='confidence-box'>{result.get('confidence', 0)*100:.1f}%</div>",
                     unsafe_allow_html=True
                 )
-                
                 # Display confidence chart
                 st.plotly_chart(
-                    create_confidence_chart(result['probabilities']),
-                    width="stretch"
+                    create_confidence_chart(result.get('probabilities', {})),
+                    config={"displayModeBar": False}
                 )
-                
                 # Display top 5 predictions
                 st.subheader("Top 5 Predictions")
-                for i, (letter, prob) in enumerate(result['top5'], 1):
-                    st.progress(prob, text=f"{i}. **{letter}** - {prob*100:.2f}%")
+                for i, (letter, prob) in enumerate(result.get('top5', []), 1):
+                    st.progress(prob, text=f"{i}. {letter} - {prob*100:.2f}%")
     
     with tab3:
         st.subheader("Performance Statistics")
@@ -542,7 +533,7 @@ else:
                 # Download button
                 csv = recent_df.to_csv(index=False)
                 st.download_button(
-                    label="📥 Download History as CSV",
+                    label="Download History as CSV",
                     data=csv,
                     file_name=f"asl_predictions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                     mime="text/csv"
@@ -553,7 +544,7 @@ else:
 # Footer
 st.divider()
 st.markdown("""
-    <p style='text-align: center; color: #666;'>
-        🎓 ASL Alphabet Recognition Project | Powered by PyTorch & Streamlit | Optimized for RTX 4060
+    <p style='text-align: center; color: #888;'>
+        ASL Alphabet Recognition Project | Powered by PyTorch & Streamlit
     </p>
 """, unsafe_allow_html=True)
