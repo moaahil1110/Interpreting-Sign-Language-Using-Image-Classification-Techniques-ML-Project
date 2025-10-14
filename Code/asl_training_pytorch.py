@@ -18,7 +18,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader, random_split, Subset
-from torchvision import transforms, models
+from torchvision import transforms
 from PIL import Image
 import matplotlib.pyplot as plt
 from sklearn.metrics import classification_report, confusion_matrix
@@ -207,40 +207,8 @@ class EfficientASLNet(nn.Module):
 
         return x
 
-class OptimizedASLTransferLearningNet(nn.Module):
-    """Transfer learning model optimized for RTX 4060"""
-
-    def __init__(self, num_classes=26, backbone='efficientnet_b2', pretrained=True):
-        super(OptimizedASLTransferLearningNet, self).__init__()
-
-        if backbone == 'efficientnet_b2':
-            import torchvision.models as models
-            self.backbone = models.efficientnet_b2(pretrained=pretrained)
-            num_features = self.backbone.classifier[1].in_features
-            self.backbone.classifier = nn.Identity()
-        elif backbone == 'resnet50':
-            self.backbone = models.resnet50(pretrained=pretrained)
-            num_features = self.backbone.fc.in_features
-            self.backbone.fc = nn.Identity()
-        else:
-            raise ValueError(f"Unsupported backbone: {backbone}")
-
-        # Optimized classifier with tensor core friendly dimensions
-        self.classifier = nn.Sequential(
-            nn.Linear(num_features, 1024),
-            nn.BatchNorm1d(1024),
-            nn.ReLU(),
-            nn.Dropout(0.4),
-            nn.Linear(1024, 512),
-            nn.BatchNorm1d(512),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(512, num_classes)
-        )
-
-    def forward(self, x):
-        features = self.backbone(x)
-        return self.classifier(features)
+# Note: Transfer-learning model (OptimizedASLTransferLearningNet) removed.
+# This repository now uses the custom EfficientASLNet as the primary architecture.
 
 class OptimizedASLTrainer:
     """RTX 4060 Optimized ASL Trainer with AMP and memory optimization"""
@@ -391,13 +359,6 @@ class OptimizedASLTrainer:
         """
         if model_type == 'efficient':
             self.model = EfficientASLNet(num_classes=self.num_classes, **kwargs)
-        elif model_type == 'transfer':
-            backbone = kwargs.get('backbone', 'efficientnet_b2')
-            self.model = OptimizedASLTransferLearningNet(
-                num_classes=self.num_classes,
-                backbone=backbone,
-                **kwargs
-            )
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
@@ -724,16 +685,9 @@ def main():
     # Setup data loaders
     trainer.setup_data_loaders(val_split=0.2)
 
-    # Build model - try efficient model first, fallback to transfer learning if needed
-    try:
-        print("Building efficient CNN model...")
-        trainer.build_model(model_type='efficient', dropout_rate=0.3)
-    except RuntimeError as e:
-        if "out of memory" in str(e).lower():
-            print("Switching to transfer learning model for better memory efficiency...")
-            trainer.build_model(model_type='transfer', backbone='efficientnet_b2')
-        else:
-            raise e
+    # Build model (efficient CNN)
+    print("Building efficient CNN model...")
+    trainer.build_model(model_type='efficient', dropout_rate=0.3)
 
     # Train model
     history = trainer.train_model(
