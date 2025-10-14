@@ -751,6 +751,99 @@ else:
             st.session_state.prediction_history = []
             st.success("Buffer reset!")
 
+        # Camera loop
+        if st.session_state.camera_active and st.session_state.inference_engine:
+            cap = cv2.VideoCapture(camera_id)
+            
+            if not cap.isOpened():
+                st.error(f"Could not open camera {camera_id}. Please check camera permissions and device ID.")
+                st.session_state.camera_active = False
+            else:
+                frame_count = 0
+                
+                while st.session_state.camera_active:
+                    ret, frame = cap.read()
+                    if not ret:
+                        st.error("Failed to grab frame from camera")
+                        break
+                    
+                    frame_count += 1
+                    
+                    # Draw ROI and get hand region
+                    frame, roi = draw_hand_roi(frame, roi_size)
+                    
+                    # Make prediction every 3 frames to improve performance
+                    if frame_count % 3 == 0 and roi.size > 0:
+                        try:
+                            result = st.session_state.inference_engine.predict(roi, return_probabilities=True)
+                            
+                            # Display prediction
+                            letter = result['smoothed_letter']
+                            confidence = result['confidence'] * 100
+                            
+                            # Update prediction display
+                            prediction_display.markdown(
+                                f"<div class='prediction-box'>{letter}</div>",
+                                unsafe_allow_html=True
+                            )
+                            
+                            confidence_display.markdown(
+                                f"<div class='confidence-box'>{confidence:.1f}%</div>",
+                                unsafe_allow_html=True
+                            )
+                            
+                            # Update chart
+                            chart_display.plotly_chart(
+                                create_confidence_chart(result['probabilities']),
+                                width="stretch"
+                            )
+                            
+                            # Display top 5 predictions
+                            top_5_probs = sorted(zip(result['class_names'], result['probabilities']), 
+                                               key=lambda x: x[1], reverse=True)[:5]
+                            top5_html = "<div style='margin-top: 20px;'><h4 style='color: #333; margin-bottom: 10px;'>📊 Top 5 Predictions:</h4>"
+                            for i, (cls, prob) in enumerate(top_5_probs, 1):
+                                bar_width = int(prob * 100)
+                                color = '#4CAF50' if i == 1 else '#2196F3' if i == 2 else '#FF9800' if i == 3 else '#9C27B0' if i == 4 else '#607D8B'
+                                top5_html += f"""
+                                <div style='margin-bottom: 8px;'>
+                                    <div style='display: flex; justify-content: space-between; margin-bottom: 2px;'>
+                                        <span style='font-weight: 500; color: #333;'>{i}. {cls}</span>
+                                        <span style='font-weight: 600; color: {color};'>{prob*100:.1f}%</span>
+                                    </div>
+                                    <div style='background-color: #f0f0f0; border-radius: 10px; overflow: hidden;'>
+                                        <div style='background-color: {color}; height: 8px; width: {bar_width}%; transition: width 0.3s;'></div>
+                                    </div>
+                                </div>
+                                """
+                            top5_html += "</div>"
+                            top5_display.markdown(top5_html, unsafe_allow_html=True)
+                            
+                            # Add to history
+                            st.session_state.prediction_history.append({
+                                'timestamp': datetime.now(),
+                                'letter': letter,
+                                'confidence': confidence
+                            })
+                            
+                            # Overlay prediction on frame
+                            cv2.putText(frame, f"Prediction: {letter}", (10, 50),
+                                       cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 0), 3)
+                            cv2.putText(frame, f"Confidence: {confidence:.1f}%", (10, 100),
+                                       cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 0), 3)
+                            
+                        except Exception as e:
+                            st.error(f"Prediction error: {str(e)}")
+                    
+                    # Display frame
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    camera_placeholder.image(frame_rgb, channels="RGB", width="stretch")
+                    
+                    # Small delay to prevent excessive CPU usage
+                    time.sleep(0.03)
+                
+                cap.release()
+
     with tab2:
         # ENHANCED UPLOAD TAB WITH NEURAL NETWORK VISUALIZER
         st.subheader("Upload Image & Analyze Neural Network")
