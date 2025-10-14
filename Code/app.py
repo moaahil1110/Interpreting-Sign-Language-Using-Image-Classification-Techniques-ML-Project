@@ -21,6 +21,7 @@ import pandas as pd
 import torch.nn.functional as F
 from torchvision import transforms
 from collections import OrderedDict
+import os
 
 # Page configuration
 st.set_page_config(
@@ -711,7 +712,7 @@ if not st.session_state.model_loaded:
         """)
 else:
     # Enhanced tabs with neural network visualizer
-    tab1, tab2, tab3 = st.tabs(["Live Camera", "Upload & Analyze Neural Network", "Statistics"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Live Camera", "Upload & Analyze Neural Network", "Statistics", "Testing"])
 
     with tab1:
         # Same live camera functionality as original
@@ -1059,6 +1060,119 @@ else:
                 )
             else:
                 st.info("No predictions yet. Start using the camera to see statistics!")
+
+    with tab4:
+        # TESTING TAB - Model Evaluation Results
+        st.subheader("Model Evaluation Results")
+        
+        st.markdown("""
+        <div class="info-box">
+            <h3 style='margin-top: 0; color: white;'>ASL Model Performance Metrics</h3>
+            <p style='margin-bottom: 0; color: white;'>
+                Comprehensive evaluation of the trained ASL alphabet recognition model.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Display key metrics
+        try:
+            with open("validationResults/metrics_Test.txt", "r") as f:
+                metrics_content = f.read()
+            
+            # Parse metrics for display
+            lines = metrics_content.strip().split('\n')
+            if len(lines) >= 4:
+                accuracy = lines[1].split(":")[1].strip()
+                macro_f1 = lines[2].split(":")[1].strip()
+                micro_f1 = lines[3].split(":")[1].strip()
+                
+                col1, col2, col3 = st.columns(3)
+                col1.metric("Accuracy", accuracy)
+                col2.metric("Macro F1", macro_f1)
+                col3.metric("Micro F1", micro_f1)
+        except FileNotFoundError:
+            st.warning("Metrics file not found. Run the evaluation script to generate it.")
+        
+        # Display per-class metrics visualization
+        try:
+            with open("validationResults/metrics_Test.txt", "r") as f:
+                metrics_content = f.read()
+            
+            # Parse per-class metrics
+            lines = metrics_content.strip().split('\n')
+            class_metrics = []
+            for line in lines[7:]:  # Skip header lines
+                if line.strip() and ':' in line:
+                    parts = line.split(':')
+                    class_name = parts[0].strip()
+                    metrics = parts[1].split(',')
+                    precision = float(metrics[0].split('=')[1].strip())
+                    recall = float(metrics[1].split('=')[1].strip())
+                    f1 = float(metrics[2].split('=')[1].strip())
+                    class_metrics.append({
+                        'Class': class_name,
+                        'Precision': precision,
+                        'Recall': recall,
+                        'F1': f1
+                    })
+            
+            if class_metrics:
+                # Convert to DataFrame for easier handling
+                import pandas as pd
+                metrics_df = pd.DataFrame(class_metrics)
+                
+                # Display bar chart for per-class metrics
+                st.subheader("Per-Class Performance Metrics")
+                
+                # Create bar chart using Plotly
+                fig = go.Figure()
+                fig.add_trace(go.Bar(x=metrics_df['Class'], y=metrics_df['Precision'], name='Precision', marker_color='#FF6B6B'))
+                fig.add_trace(go.Bar(x=metrics_df['Class'], y=metrics_df['Recall'], name='Recall', marker_color='#4ECDC4'))
+                fig.add_trace(go.Bar(x=metrics_df['Class'], y=metrics_df['F1'], name='F1-Score', marker_color='#45B7D1'))
+                
+                fig.update_layout(
+                    title="Per-Class Precision, Recall, and F1-Score",
+                    xaxis_title="ASL Classes",
+                    yaxis_title="Score",
+                    barmode='group',
+                    height=500,
+                    showlegend=True
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Display metrics table
+                st.subheader("Detailed Metrics Table")
+                st.dataframe(metrics_df.style.highlight_max(axis=0), use_container_width=True)
+        except Exception as e:
+            st.warning(f"Could not load per-class metrics: {str(e)}")
+        
+        # Display confusion matrix
+        try:
+            st.subheader("Confusion Matrix")
+            st.image("validationResults/confusion_matrix_Test.png", caption="Confusion Matrix", use_column_width=True)
+        except FileNotFoundError:
+            st.warning("Confusion matrix image not found. Run the evaluation script to generate it.")
+        
+        # Load and display classification report
+        try:
+            with open("validationResults/classification_report_Test.txt", "r") as f:
+                report_content = f.read()
+            
+            st.subheader("Classification Report")
+            st.text(report_content)
+        except FileNotFoundError:
+            st.warning("Classification report not found. Run the evaluation script to generate it.")
+        
+        # Add button to run evaluation
+        st.divider()
+        st.subheader("Run Evaluation")
+        st.markdown("""
+        To generate or update the evaluation results, run the evaluation script:
+        ```bash
+        python asl_evaluate_pytorch.py
+        ```
+        """)
 
 # Footer
 st.divider()
