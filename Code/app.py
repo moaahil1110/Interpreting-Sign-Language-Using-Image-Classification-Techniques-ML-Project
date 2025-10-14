@@ -123,11 +123,10 @@ st.markdown("""
         background-color: #333;
         color: #ffffff !important;
     }
-    .stTabs [data-baseweb="tab"][aria-selected="true"] * {
-        color: #ffffff !important;
-        fill: #ffffff !important;
+    /* Hide the sidebar header */
+    [data-testid="stSidebarHeader"] {
+        display: none !important;
     }
-    </style>
 """, unsafe_allow_html=True)
 
 # Neural Network Visualizer Class
