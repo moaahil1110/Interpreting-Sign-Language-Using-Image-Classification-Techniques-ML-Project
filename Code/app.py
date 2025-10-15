@@ -479,11 +479,7 @@ else:
             # Prediction displays
             prediction_display = st.empty()
             confidence_display = st.empty()
-            
-            # Chart container with fixed size
-            st.markdown('<div class="chart-container">', unsafe_allow_html=True)
             chart_display = st.empty()
-            st.markdown('</div>', unsafe_allow_html=True)
 
         # Handle camera controls
         if start_camera:
