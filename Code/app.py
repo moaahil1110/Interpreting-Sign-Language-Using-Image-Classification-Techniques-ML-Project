@@ -11,6 +11,11 @@ warnings.filterwarnings("ignore")
 import logging
 logging.getLogger().setLevel(logging.CRITICAL)
 
+# Suppress specific Streamlit deprecation warnings
+warnings.filterwarnings("ignore", message="Please replace.*with.*width")
+warnings.filterwarnings("ignore", message="use_column_width.*deprecated")
+warnings.filterwarnings("ignore", message="use_container_width.*deprecated")
+
 import streamlit as st
 import cv2
 import numpy as np
@@ -688,25 +693,97 @@ else:
                 st.info("📱 Start using the camera to see statistics!")
 
     with tab4:
-        # Testing tab (simplified)
-        st.subheader("🧪 Model Evaluation")
-        
+        # Testing tab - Model Evaluation Results
+        st.subheader("🧪 Model Evaluation Results")
+
+        st.markdown("""
+        <div class="info-box">
+            <h3 style='margin-top: 0; color: white;'>ASL Model Performance Metrics</h3>
+            <p style='margin-bottom: 0; color: white;'>
+                Comprehensive evaluation of the trained ASL alphabet recognition model.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Default results directory
+        results_dir = "validationResults"
+
+        # Simple path input for test dataset directory
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        default_test_dir = os.path.join(project_root, 'MergedDataset', 'Test')
         test_data_dir = st.text_input(
             "Test dataset directory",
-            value="validationResults"
+            value=default_test_dir,
         )
-        
-        if st.button("🚀 Run Evaluation"):
+
+        run_eval = st.button("🚀 Run Evaluation", use_container_width=True)
+        if run_eval:
             try:
                 with st.spinner("Running evaluation..."):
-                    summary = evaluate(
-                        model_path=model_path, 
-                        test_data_path=test_data_dir, 
-                        results_dir="validationResults"
-                    )
+                    summary = evaluate(model_path=model_path, test_data_path=test_data_dir, results_dir=results_dir)
+                st.session_state['results_dir'] = results_dir
                 st.success(f"✅ Evaluation complete! Accuracy: {summary['accuracy']:.2f}%")
             except Exception as e:
                 st.error(f"❌ Evaluation failed: {str(e)}")
+
+        # Display key metrics
+        try:
+            with open(os.path.join(results_dir, "metrics_Test.txt"), "r") as f:
+                metrics_content = f.read()
+
+            # Parse metrics for display
+            lines = metrics_content.strip().split('\n')
+            if len(lines) >= 4:
+                accuracy = lines[1].split(":")[1].strip()
+                macro_f1 = lines[2].split(":")[1].strip()
+                micro_f1 = lines[3].split(":")[1].strip()
+
+                col1, col2, col3 = st.columns(3)
+                col1.metric("🎯 Accuracy", accuracy)
+                col2.metric("📊 Macro F1", macro_f1)
+                col3.metric("📈 Micro F1", micro_f1)
+        except FileNotFoundError:
+            st.warning("📋 Metrics file not found. Run the evaluation script to generate it.")
+
+        # Display all evaluation graphs
+        st.divider()
+        st.subheader("📊 Evaluation Visualizations")
+
+        # Confusion Matrix
+        try:
+            st.subheader("🧩 Confusion Matrix")
+            st.image(os.path.join(results_dir, "confusion_matrix.png"),
+                    caption="Confusion Matrix - Shows misclassifications between letters",
+                    width='stretch')
+        except FileNotFoundError:
+            st.warning("Confusion matrix not found. Run evaluation to generate it.")
+
+        # Per-class Metrics Bar Chart
+        try:
+            st.subheader("📈 Per-Class Performance")
+            st.image(os.path.join(results_dir, "metrics_bar_chart.png"),
+                    caption="Bar chart showing precision, recall, and F1-score for each ASL letter",
+                    width='stretch')
+        except FileNotFoundError:
+            st.warning("Metrics bar chart not found. Run evaluation to generate it.")
+
+        # Metrics Heatmap
+        try:
+            st.subheader("🔥 Classification Metrics Heatmap")
+            st.image(os.path.join(results_dir, "metrics_heatmap.png"),
+                    caption="Heatmap visualization of precision, recall, and F1-scores across all classes",
+                    width='stretch')
+        except FileNotFoundError:
+            st.warning("Metrics heatmap not found. Run evaluation to generate it.")
+
+        # Classification Report
+        try:
+            st.subheader("📋 Detailed Classification Report")
+            with open(os.path.join(results_dir, "classification_report_Test.txt"), "r") as f:
+                report_content = f.read()
+            st.text_area("Classification Report", report_content, height=300)
+        except FileNotFoundError:
+            st.warning("Classification report not found. Run evaluation to generate it.")
 
 # Footer
 st.divider()
