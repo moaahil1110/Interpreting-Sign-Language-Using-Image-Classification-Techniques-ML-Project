@@ -30,3 +30,4 @@ data/
 datasets/
 *.csv
 *.zip
+best_asl_model_rtx4060_optimized_old.pth 
