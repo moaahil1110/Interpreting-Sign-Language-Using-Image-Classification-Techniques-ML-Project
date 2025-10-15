@@ -1,13 +1,12 @@
 # Model files (too large for GitHub)
 *.pth
-best_asl_model_rtx4060_optimized.pth
 
 # Python cache
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-
+Code/validationResults/
 # Virtual environments
 venv/
 env/

@@ -22,6 +22,7 @@ import torch.nn.functional as F
 from torchvision import transforms
 from collections import OrderedDict
 import os
+from asl_evaluate_pytorch import evaluate
 
 # Page configuration
 st.set_page_config(
@@ -1073,10 +1074,32 @@ else:
             </p>
         </div>
         """, unsafe_allow_html=True)
+
+        # Default results directory (no user prompt)
+        results_dir = st.session_state.get('results_dir', "validationResults")
+
+        # Simple path input for test dataset directory
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        default_test_dir = st.session_state.get('test_data_dir', os.path.join(project_root, 'MergedDataset', 'Test'))
+        test_data_dir = st.text_input(
+            "Test dataset directory",
+            value=default_test_dir,
+        )
+
+        run_eval = st.button("Run Evaluation", width='stretch')
+        if run_eval:
+            try:
+                with st.spinner("Running evaluation..."):
+                    summary = evaluate(model_path=model_path, test_data_path=test_data_dir, results_dir=results_dir)
+                st.session_state['results_dir'] = results_dir
+                st.session_state['test_data_dir'] = test_data_dir
+                st.success(f"Evaluation complete. Results saved to: {summary['results_dir']}")
+            except Exception as e:
+                st.error(f"Evaluation failed: {str(e)}")
         
         # Display key metrics
         try:
-            with open("validationResults/metrics_Test.txt", "r") as f:
+            with open(os.path.join(results_dir, "metrics_Test.txt"), "r") as f:
                 metrics_content = f.read()
             
             # Parse metrics for display
@@ -1095,7 +1118,7 @@ else:
         
         # Display per-class metrics visualization
         try:
-            with open("validationResults/metrics_Test.txt", "r") as f:
+            with open(os.path.join(results_dir, "metrics_Test.txt"), "r") as f:
                 metrics_content = f.read()
             
             # Parse per-class metrics
@@ -1150,29 +1173,11 @@ else:
         # Display confusion matrix
         try:
             st.subheader("Confusion Matrix")
-            st.image("validationResults/confusion_matrix_Test.png", caption="Confusion Matrix", use_column_width=True)
+            st.image(os.path.join(results_dir, "confusion_matrix_Test.png"), caption="Confusion Matrix", use_column_width=True)
         except FileNotFoundError:
             st.warning("Confusion matrix image not found. Run the evaluation script to generate it.")
         
-        # Load and display classification report
-        try:
-            with open("validationResults/classification_report_Test.txt", "r") as f:
-                report_content = f.read()
-            
-            st.subheader("Classification Report")
-            st.text(report_content)
-        except FileNotFoundError:
-            st.warning("Classification report not found. Run the evaluation script to generate it.")
-        
-        # Add button to run evaluation
-        st.divider()
-        st.subheader("Run Evaluation")
-        st.markdown("""
-        To generate or update the evaluation results, run the evaluation script:
-        ```bash
-        python asl_evaluate_pytorch.py
-        ```
-        """)
+        # Removed Classification Report text and CLI instructions per request
 
 # Footer
 st.divider()
