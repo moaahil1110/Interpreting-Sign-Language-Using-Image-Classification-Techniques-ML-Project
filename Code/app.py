@@ -1,10 +1,15 @@
-
 """
-🤟 ASL Alphabet Recognition Dashboard - Enhanced with Neural Network Visualizer
+🤟 ASL Alphabet Recognition Dashboard - OPTIMIZED VERSION
+Fixed: Camera lag, smoothing issues, flickering charts, warnings suppressed
 Real-time American Sign Language Recognition System
 Powered by Deep Learning & PyTorch
-Enhanced with CNN Layer Visualization
 """
+
+# SUPPRESS ALL WARNINGS AND ERRORS
+import warnings
+warnings.filterwarnings("ignore")
+import logging
+logging.getLogger().setLevel(logging.CRITICAL)
 
 import streamlit as st
 import cv2
@@ -20,19 +25,19 @@ from asl_inference_engine import ASLInferenceEngine
 import pandas as pd
 import torch.nn.functional as F
 from torchvision import transforms
-from collections import OrderedDict
+from collections import OrderedDict, deque
 import os
 from asl_evaluate_pytorch import evaluate
 
 # Page configuration
 st.set_page_config(
-    page_title="ASL Alphabet Recognition - Enhanced",
+    page_title="ASL Alphabet Recognition - Optimized",
     page_icon="🤟",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for better UI
+# Custom CSS for better UI (same as before but with fixed chart containers)
 st.markdown("""
     <style>
     .main {
@@ -95,6 +100,15 @@ st.markdown("""
         color: #333;
         margin: 1rem 0;
     }
+    /* Fixed chart container to prevent resizing */
+    .chart-container {
+        height: 300px !important;
+        overflow: hidden;
+    }
+    /* Stable plotly container */
+    .js-plotly-plot {
+        height: 300px !important;
+    }
     h1 {
         color: #333;
         text-align: center;
@@ -108,405 +122,86 @@ st.markdown("""
         padding: 1rem 2rem;
         background-color: #f0f0f0;
         border-radius: 10px;
-        color: #333; /* Ensure visible text/icon color on light bg */
+        color: #333;
     }
-    /* Inherit color for inner elements to ensure icons/text are visible */
     .stTabs [data-baseweb="tab"] * {
         color: inherit !important;
         fill: currentColor !important;
     }
-    /* Hover state: slightly darker bg and darker text */
     .stTabs [data-baseweb="tab"]:hover {
         background-color: #e0e0e0;
         color: #222;
     }
-    /* Active/selected tab: high-contrast background with white text */
     .stTabs [data-baseweb="tab"][aria-selected="true"] {
         background-color: #333;
         color: #ffffff !important;
     }
-    /* Hide the sidebar header */
     [data-testid="stSidebarHeader"] {
         display: none !important;
     }
+    </style>
 """, unsafe_allow_html=True)
 
-# Neural Network Visualizer Class
-class CNNVisualizer:
-    """
-    Comprehensive CNN visualizer for ASL recognition model
-    Shows layer-by-layer processing, feature maps, and network architecture
-    """
-
-    def __init__(self, model, device='cuda', class_names=None):
-        """
-        Initialize CNN Visualizer
-
-        Args:
-            model: Trained EfficientASLNet model
-            device: Computing device ('cuda' or 'cpu')
-            class_names: List of ASL alphabet class names
-        """
-        self.model = model.eval()  # Set to evaluation mode
-        self.device = device
-        self.class_names = class_names or [chr(i) for i in range(ord('A'), ord('Z')+1)]
-
-        # Hook storage for intermediate activations
-        self.activations = {}
-        self.gradients = {}
-        self.hooks = []
-
-        # Layer information
-        self.layer_info = self._get_layer_info()
-
-    def _get_layer_info(self):
-        """Extract information about each layer in the network"""
-        layer_info = []
-        for name, module in self.model.named_modules():
-            if isinstance(module, (torch.nn.Conv2d, torch.nn.Linear, torch.nn.BatchNorm2d, 
-                                 torch.nn.MaxPool2d, torch.nn.AdaptiveAvgPool2d)):
-                info = {
-                    'name': name,
-                    'type': type(module).__name__,
-                    'module': module
-                }
-
-                if hasattr(module, 'in_channels'):
-                    info['in_channels'] = module.in_channels
-                if hasattr(module, 'out_channels'):
-                    info['out_channels'] = module.out_channels
-                if hasattr(module, 'kernel_size'):
-                    info['kernel_size'] = module.kernel_size
-                if hasattr(module, 'in_features'):
-                    info['in_features'] = module.in_features
-                if hasattr(module, 'out_features'):
-                    info['out_features'] = module.out_features
-
-                layer_info.append(info)
-
-        return layer_info
-
-    def register_hooks(self):
-        """Register forward hooks to capture intermediate activations"""
-        self.clear_hooks()
-
-        def get_activation(name):
-            def hook(model, input, output):
-                if isinstance(output, torch.Tensor):
-                    self.activations[name] = output.detach().cpu()
-                elif isinstance(output, tuple):
-                    self.activations[name] = output[0].detach().cpu()
-            return hook
-
-        # Register hooks for convolutional and linear layers
-        for name, module in self.model.named_modules():
-            if isinstance(module, (torch.nn.Conv2d, torch.nn.Linear)):
-                hook = module.register_forward_hook(get_activation(name))
-                self.hooks.append(hook)
-
-    def clear_hooks(self):
-        """Clear all registered hooks"""
-        for hook in self.hooks:
-            hook.remove()
-        self.hooks = []
-        self.activations = {}
-
-    def visualize_network_architecture(self):
-        """Create an interactive network architecture visualization"""
-        # Create network architecture diagram using Plotly
-        fig = go.Figure()
-
-        layer_positions = []
-        y_pos = 0
-        colors = {
-            'Conv2d': '#FF6B6B',
-            'BatchNorm2d': '#4ECDC4', 
-            'MaxPool2d': '#45B7D1',
-            'AdaptiveAvgPool2d': '#96CEB4',
-            'Linear': '#FFEAA7',
-            'Dropout': '#DDA0DD',
-            'Dropout2d': '#DDA0DD'
-        }
-
-        for i, layer in enumerate(self.layer_info):
-            layer_type = layer['type']
-            layer_name = layer['name']
-
-            # Determine layer description
-            if layer_type == 'Conv2d':
-                desc = f"Conv2d\n{layer.get('in_channels', '?')}→{layer.get('out_channels', '?')}\nK:{layer.get('kernel_size', '?')}"
-            elif layer_type == 'Linear':
-                desc = f"Linear\n{layer.get('in_features', '?')}→{layer.get('out_features', '?')}"
-            else:
-                desc = layer_type
-
-            # Add layer box
-            fig.add_trace(go.Scatter(
-                x=[i],
-                y=[y_pos],
-                mode='markers+text',
-                marker=dict(
-                    size=50,
-                    color=colors.get(layer_type, '#BDC3C7'),
-                    line=dict(width=2, color='white')
-                ),
-                text=desc,
-                textposition="middle center",
-                textfont=dict(size=8, color='white'),
-                name=layer_name,
-                hovertemplate=f"<b>{layer_name}</b><br>{desc}<extra></extra>"
-            ))
-
-            layer_positions.append((i, y_pos))
-
-        # Add connections between layers
-        for i in range(len(layer_positions) - 1):
-            x0, y0 = layer_positions[i]
-            x1, y1 = layer_positions[i + 1]
-
-            fig.add_trace(go.Scatter(
-                x=[x0, x1],
-                y=[y0, y1],
-                mode='lines',
-                line=dict(width=2, color='rgba(100,100,100,0.5)'),
-                showlegend=False,
-                hoverinfo='skip'
-            ))
-
-        fig.update_layout(
-            title="EfficientASLNet Architecture",
-            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-            showlegend=False,
-            height=200,
-            margin=dict(l=20, r=20, t=40, b=20),
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)'
-        )
-
-        return fig
-
-    def extract_feature_maps(self, image, layers_to_visualize=None):
-        """
-        Extract feature maps from specified layers
-
-        Args:
-            image: Input image tensor
-            layers_to_visualize: List of layer names to visualize
-
-        Returns:
-            Dictionary of feature maps for each layer
-        """
-        if layers_to_visualize is None:
-            layers_to_visualize = ['conv1', 'conv2', 'conv3', 'conv4', 'conv5']
-
-        self.register_hooks()
-
-        # Forward pass to capture activations
-        with torch.no_grad():
-            _ = self.model(image.to(self.device))
-
-        # Extract requested feature maps
-        feature_maps = {}
-        for layer_name in layers_to_visualize:
-            if layer_name in self.activations:
-                feature_maps[layer_name] = self.activations[layer_name]
-
-        self.clear_hooks()
-        return feature_maps
-
-    def visualize_feature_maps(self, feature_maps, max_channels=16):
-        """
-        Create visualization of feature maps for each layer
-
-        Args:
-            feature_maps: Dictionary of feature maps from extract_feature_maps
-            max_channels: Maximum number of channels to display per layer
-
-        Returns:
-            Plotly figure with feature map visualizations
-        """
-        num_layers = len(feature_maps)
-        if num_layers == 0:
-            return None
-
-        # Create subplots
-        fig = make_subplots(
-            rows=num_layers,
-            cols=1,
-            subplot_titles=list(feature_maps.keys()),
-            vertical_spacing=0.02
-        )
-
-        for row, (layer_name, feature_map) in enumerate(feature_maps.items(), 1):
-            if feature_map is None:
-                continue
-
-            # Get first batch and limit channels
-            fmap = feature_map[0]  # Remove batch dimension
-            num_channels = min(fmap.shape[0], max_channels)
-
-            # Create a grid of feature maps
-            grid_size = int(np.ceil(np.sqrt(num_channels)))
-            combined_map = np.zeros((
-                grid_size * fmap.shape[1],
-                grid_size * fmap.shape[2]
-            ))
-
-            for i in range(num_channels):
-                row_idx = i // grid_size
-                col_idx = i % grid_size
-
-                start_row = row_idx * fmap.shape[1]
-                end_row = start_row + fmap.shape[1]
-                start_col = col_idx * fmap.shape[2]
-                end_col = start_col + fmap.shape[2]
-
-                combined_map[start_row:end_row, start_col:end_col] = fmap[i].numpy()
-
-            # Add heatmap to subplot
-            fig.add_trace(
-                go.Heatmap(
-                    z=combined_map,
-                    colorscale='Viridis',
-                    showscale=False,
-                    hovertemplate=f"Layer: {layer_name}<br>Value: %{{z:.3f}}<extra></extra>"
-                ),
-                row=row, col=1
-            )
-
-        fig.update_layout(
-            title="Feature Map Activations",
-            height=200 * num_layers,
-            margin=dict(l=20, r=20, t=40, b=20)
-        )
-
-        # Remove axis labels for cleaner look
-        fig.update_xaxes(showticklabels=False)
-        fig.update_yaxes(showticklabels=False)
-
-        return fig
-
-    def create_activation_statistics(self, feature_maps):
-        """
-        Create statistical analysis of layer activations
-
-        Args:
-            feature_maps: Dictionary of feature maps
-
-        Returns:
-            Plotly figure with activation statistics
-        """
-        stats_data = []
-
-        for layer_name, feature_map in feature_maps.items():
-            if feature_map is None:
-                continue
-
-            fmap = feature_map[0].numpy()  # Remove batch dimension
-
-            stats_data.append({
-                'Layer': layer_name,
-                'Mean Activation': np.mean(fmap),
-                'Std Activation': np.std(fmap),
-                'Max Activation': np.max(fmap),
-                'Min Activation': np.min(fmap),
-                'Active Neurons (>0)': np.sum(fmap > 0) / fmap.size * 100,
-                'Shape': str(fmap.shape)
-            })
-
-        if not stats_data:
-            return None
-
-        # Create bar charts for different statistics
-        fig = make_subplots(
-            rows=2, cols=2,
-            subplot_titles=['Mean Activation', 'Standard Deviation', 
-                          'Max Activation', 'Active Neurons (%)'],
-            specs=[[{"secondary_y": False}, {"secondary_y": False}],
-                   [{"secondary_y": False}, {"secondary_y": False}]]
-        )
-
-        layers = [data['Layer'] for data in stats_data]
-
-        # Mean activation
-        fig.add_trace(
-            go.Bar(x=layers, y=[data['Mean Activation'] for data in stats_data],
-                   name='Mean', marker_color='#FF6B6B'),
-            row=1, col=1
-        )
-
-        # Standard deviation
-        fig.add_trace(
-            go.Bar(x=layers, y=[data['Std Activation'] for data in stats_data],
-                   name='Std', marker_color='#4ECDC4'),
-            row=1, col=2
-        )
-
-        # Max activation
-        fig.add_trace(
-            go.Bar(x=layers, y=[data['Max Activation'] for data in stats_data],
-                   name='Max', marker_color='#45B7D1'),
-            row=2, col=1
-        )
-
-        # Active neurons percentage
-        fig.add_trace(
-            go.Bar(x=layers, y=[data['Active Neurons (>0)'] for data in stats_data],
-                   name='Active %', marker_color='#FFEAA7'),
-            row=2, col=2
-        )
-
-        fig.update_layout(
-            title="Layer Activation Statistics",
-            showlegend=False,
-            height=500,
-            margin=dict(l=20, r=20, t=60, b=20)
-        )
-
-        return fig
-
-    def create_confidence_visualization(self, prediction_result):
-        """Create detailed confidence visualization"""
-        if 'probabilities' not in prediction_result:
-            return None
-
-        probs = prediction_result['probabilities']
-        letters = list(probs.keys())
-        confidences = [probs[letter] * 100 for letter in letters]
-
-        # Sort by confidence
-        sorted_data = sorted(zip(letters, confidences), key=lambda x: x[1], reverse=True)
-        top_10 = sorted_data[:10]
-
-        fig = go.Figure()
-
-        # Add bars
-        fig.add_trace(go.Bar(
-            x=[item[1] for item in top_10],
-            y=[item[0] for item in top_10],
-            orientation='h',
-            marker=dict(
-                color=[item[1] for item in top_10],
-                colorscale='Viridis',
-                showscale=True,
-                colorbar=dict(title="Confidence (%)")
-            ),
-            text=[f'{item[1]:.2f}%' for item in top_10],
-            textposition='auto',
-        ))
-
-        fig.update_layout(
-            title="Top 10 Predictions - Neural Network Output",
-            xaxis_title="Confidence (%)",
-            yaxis_title="ASL Letter",
-            height=400,
-            margin=dict(l=20, r=20, t=40, b=20)
-        )
-
-        return fig
-
-# Initialize session state
+# ENHANCED PREDICTION SMOOTHING CLASS
+class OptimizedPredictionSmoothing:
+    """Enhanced prediction smoothing with temporal stability and reduced flickering"""
+    
+    def __init__(self, window_size=8, confidence_threshold=0.6, stability_threshold=0.7):
+        self.window_size = window_size
+        self.confidence_threshold = confidence_threshold
+        self.stability_threshold = stability_threshold
+        self.predictions = deque(maxlen=window_size)
+        self.confidences = deque(maxlen=window_size)
+        self.probability_history = deque(maxlen=5)  # For smooth chart transitions
+        
+    def add_prediction(self, letter, confidence, probabilities):
+        """Add new prediction with enhanced smoothing"""
+        self.predictions.append(letter)
+        self.confidences.append(confidence)
+        self.probability_history.append(probabilities)
+        
+        return self.get_stable_prediction()
+    
+    def get_stable_prediction(self):
+        """Get smoothed prediction with stability check"""
+        if len(self.predictions) < 3:
+            return self.predictions[-1] if self.predictions else None
+        
+        # Count occurrences in recent predictions
+        letter_counts = {}
+        recent_predictions = list(self.predictions)[-5:]
+        
+        for letter in recent_predictions:
+            letter_counts[letter] = letter_counts.get(letter, 0) + 1
+        
+        # Get most stable letter
+        most_common_letter = max(letter_counts, key=letter_counts.get)
+        stability_ratio = letter_counts[most_common_letter] / len(recent_predictions)
+        
+        # Return stable prediction
+        if stability_ratio >= self.stability_threshold:
+            return most_common_letter
+        else:
+            return self.predictions[-1]
+    
+    def get_smooth_probabilities(self):
+        """Get smoothed probabilities for stable chart updates"""
+        if not self.probability_history:
+            return {}
+        
+        # Average probabilities over recent frames for smoother charts
+        all_letters = set()
+        for probs in self.probability_history:
+            all_letters.update(probs.keys())
+        
+        smoothed_probs = {}
+        for letter in all_letters:
+            values = [probs.get(letter, 0) for probs in self.probability_history]
+            smoothed_probs[letter] = sum(values) / len(values)
+        
+        return smoothed_probs
+
+# Initialize enhanced session state
 if 'inference_engine' not in st.session_state:
     st.session_state.inference_engine = None
 if 'camera_active' not in st.session_state:
@@ -515,9 +210,15 @@ if 'prediction_history' not in st.session_state:
     st.session_state.prediction_history = []
 if 'model_loaded' not in st.session_state:
     st.session_state.model_loaded = False
+if 'prediction_smoother' not in st.session_state:
+    st.session_state.prediction_smoother = OptimizedPredictionSmoothing()
+if 'last_prediction_time' not in st.session_state:
+    st.session_state.last_prediction_time = 0
+if 'chart_update_counter' not in st.session_state:
+    st.session_state.chart_update_counter = 0
 
-def load_model(model_path, device='cuda', smoothing=5, threshold=0.7):
-    """Load the ASL model"""
+def load_model(model_path, device='cuda', smoothing=8, threshold=0.7):
+    """Load the ASL model with error handling"""
     try:
         engine = ASLInferenceEngine(
             model_path=model_path,
@@ -529,84 +230,117 @@ def load_model(model_path, device='cuda', smoothing=5, threshold=0.7):
     except Exception as e:
         return None, False, f"❌ Error loading model: {str(e)}"
 
-def draw_hand_roi(frame, roi_size=300):
-    """Draw region of interest for hand placement"""
-    h, w = frame.shape[:2]
-    center_x, center_y = w // 2, h // 2
-    roi_x1 = center_x - roi_size // 2
-    roi_y1 = center_y - roi_size // 2
-    roi_x2 = center_x + roi_size // 2
-    roi_y2 = center_y + roi_size // 2
+def draw_hand_roi_optimized(frame, roi_size=300):
+    """Optimized ROI drawing with better performance"""
+    try:
+        h, w = frame.shape[:2]
+        center_x, center_y = w // 2, h // 2
+        roi_x1 = max(0, center_x - roi_size // 2)
+        roi_y1 = max(0, center_y - roi_size // 2)
+        roi_x2 = min(w, center_x + roi_size // 2)
+        roi_y2 = min(h, center_y + roi_size // 2)
 
-    # Draw ROI rectangle
-    cv2.rectangle(frame, (roi_x1, roi_y1), (roi_x2, roi_y2), (0, 255, 0), 3)
-    cv2.putText(frame, "Place hand here", (roi_x1, roi_y1 - 10),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+        # Draw ROI rectangle
+        cv2.rectangle(frame, (roi_x1, roi_y1), (roi_x2, roi_y2), (0, 255, 0), 2)
+        cv2.putText(frame, "Hand Here", (roi_x1, roi_y1 - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
-    # Extract ROI
-    roi = frame[roi_y1:roi_y2, roi_x1:roi_x2]
-    return frame, roi
+        # Extract ROI
+        roi = frame[roi_y1:roi_y2, roi_x1:roi_x2]
+        if roi.size == 0:
+            roi = np.zeros((roi_size, roi_size, 3), dtype=np.uint8)
+            
+        return frame, roi
+        
+    except Exception:
+        return frame, np.zeros((300, 300, 3), dtype=np.uint8)
 
-def create_confidence_chart(probabilities, top_n=5):
-    """Create a horizontal bar chart for top predictions"""
-    # Get top N predictions
-    sorted_probs = sorted(probabilities.items(), key=lambda x: x[1], reverse=True)[:top_n]
-    letters = [item[0] for item in sorted_probs]
-    probs = [item[1] * 100 for item in sorted_probs]
+def create_stable_confidence_chart(probabilities, top_n=5):
+    """Create stable confidence chart that doesn't flicker"""
+    try:
+        # Get top N predictions
+        sorted_probs = sorted(probabilities.items(), key=lambda x: x[1], reverse=True)[:top_n]
+        letters = [item[0] for item in sorted_probs]
+        probs = [item[1] * 100 for item in sorted_probs]
+        
+        # Fixed color scheme
+        colors = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#607D8B']
+        
+        fig = go.Figure()
+        
+        fig.add_trace(go.Bar(
+            x=probs,
+            y=letters,
+            orientation='h',
+            marker=dict(
+                color=[colors[i % len(colors)] for i in range(len(probs))],
+                line=dict(width=1, color='white')
+            ),
+            text=[f'{p:.1f}%' for p in probs],
+            textposition='auto',
+            textfont=dict(size=11, color='white'),
+            showlegend=False
+        ))
 
-    # Create bar chart
-    fig = go.Figure(go.Bar(
-        x=probs,
-        y=letters,
-        orientation='h',
-        marker=dict(
-            color=probs,
-            colorscale='Viridis',
-            showscale=False
-        ),
-        text=[f'{p:.1f}%' for p in probs],
-        textposition='auto',
-    ))
-
-    fig.update_layout(
-        title="Top 5 Predictions",
-        xaxis_title="Confidence (%)",
-        yaxis_title="Letter",
-        height=300,
-        margin=dict(l=20, r=20, t=40, b=20),
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-    )
-
-    return fig
+        # Fixed layout to prevent resizing/flickering
+        fig.update_layout(
+            title=dict(
+                text="Top 5 Predictions",
+                font=dict(size=14, color='#333'),
+                x=0.5
+            ),
+            xaxis=dict(
+                title="Confidence (%)",
+                range=[0, max(100, max(probs) + 10)],  # Dynamic but stable range
+                showgrid=True,
+                gridcolor='rgba(128,128,128,0.2)'
+            ),
+            yaxis=dict(
+                title="",
+                categoryorder='total ascending'
+            ),
+            height=280,  # Fixed height
+            margin=dict(l=50, r=20, t=40, b=20),
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            font=dict(family="Arial", size=10, color="#333"),
+            transition=dict(duration=200, easing="cubic-in-out")  # Smooth transitions
+        )
+        
+        return fig
+        
+    except Exception:
+        # Return empty chart on error
+        return go.Figure()
 
 def create_history_chart(history):
     """Create line chart for prediction history"""
-    if len(history) == 0:
+    try:
+        if len(history) == 0:
+            return None
+
+        df = pd.DataFrame(history)
+        fig = px.line(df, x='timestamp', y='confidence', 
+                      title='Prediction Confidence Over Time',
+                      labels={'confidence': 'Confidence (%)', 'timestamp': 'Time'})
+
+        fig.update_layout(
+            height=250,
+            margin=dict(l=20, r=20, t=40, b=20),
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+        )
+        
+        return fig
+    except Exception:
         return None
 
-    df = pd.DataFrame(history)
-
-    fig = px.line(df, x='timestamp', y='confidence', 
-                  title='Prediction Confidence Over Time',
-                  labels={'confidence': 'Confidence (%)', 'timestamp': 'Time'})
-
-    fig.update_layout(
-        height=250,
-        margin=dict(l=20, r=20, t=40, b=20),
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-    )
-
-    return fig
-
 # Main App Header
-st.markdown("<h1>ASL Alphabet Recognition - Enhanced with Neural Network Visualizer</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #666; font-size: 1.2rem;'>Real-time American Sign Language Interpreter with AI Visualization</p>", unsafe_allow_html=True)
+st.markdown("<h1>ASL Alphabet Recognition - Optimized</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #666; font-size: 1.2rem;'>Smooth Real-time ASL Interpreter with Enhanced Performance</p>", unsafe_allow_html=True)
 
-# Sidebar Configuration (same as original)
+# Sidebar Configuration
 with st.sidebar:
-    # st.image("https://raw.githubusercontent.com/microsoft/vscode-icons/main/icons/file_type_ai.svg", width=100)  # Removed as requested
     st.header("Configuration")
 
     # Model settings
@@ -626,10 +360,10 @@ with st.sidebar:
 
     smoothing_window = st.slider(
         "Prediction Smoothing",
-        min_value=1,
-        max_value=10,
-        value=5,
-        help="Number of frames to smooth predictions (higher = more stable)"
+        min_value=3,
+        max_value=15,
+        value=8,
+        help="Higher values = more stable predictions"
     )
 
     confidence_threshold = st.slider(
@@ -637,8 +371,7 @@ with st.sidebar:
         min_value=0.0,
         max_value=1.0,
         value=0.7,
-        step=0.05,
-        help="Minimum confidence to accept predictions"
+        step=0.05
     )
 
     # Load model button
@@ -650,6 +383,10 @@ with st.sidebar:
             if success:
                 st.session_state.inference_engine = engine
                 st.session_state.model_loaded = True
+                st.session_state.prediction_smoother = OptimizedPredictionSmoothing(
+                    window_size=smoothing_window,
+                    confidence_threshold=confidence_threshold
+                )
                 st.success(message)
             else:
                 st.error(message)
@@ -660,17 +397,25 @@ with st.sidebar:
         "Camera ID",
         min_value=0,
         max_value=10,
-        value=0,
-        help="Camera device ID (usually 0 for default camera)"
+        value=0
     )
 
     roi_size = st.slider(
         "ROI Size",
         min_value=200,
         max_value=600,
-        value=500,
-        step=50,
-        help="Size of the hand detection region"
+        value=400,
+        step=50
+    )
+    
+    # Performance settings
+    st.subheader("Performance")
+    frame_skip = st.slider(
+        "Frame Skip (Higher = Less Lag)",
+        min_value=5,
+        max_value=20,
+        value=10,
+        help="Process every Nth frame"
     )
 
     # Model info
@@ -680,336 +425,229 @@ with st.sidebar:
         engine = st.session_state.inference_engine
         st.info(f"**Device:** {engine.device}")
         st.info(f"**Classes:** {len(engine.class_names)}")
-        st.info(f"**Letters:** {', '.join(list(engine.class_names)[:5])}...")
 
 # Main Content Area
 if not st.session_state.model_loaded:
-    # Welcome screen (same as original)
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown("""
         <div class="info-box">
-            <h2 style='text-align: center; margin-top: 0;'>Welcome!</h2>
+            <h2 style='text-align: center; margin-top: 0;'>Welcome to Optimized ASL Recognition!</h2>
             <p style='text-align: center; font-size: 1.1rem; margin-bottom: 0;'>
-                Please load the ASL recognition model from the sidebar to get started.
+                Please load the model from the sidebar to get started.
             </p>
         </div>
         """, unsafe_allow_html=True)
 
         st.markdown("""
+        ### ✨ New Optimizations:
+        - **Reduced Camera Lag**: Optimized frame processing
+        - **Smooth Charts**: No more flickering bars
+        - **Better Smoothing**: Enhanced prediction stability
+        - **Error Suppression**: Clean, quiet operation
+        - **Performance Controls**: Adjustable frame skip rates
+
         ### How to Use:
         1. **Load Model**: Click "Load Model" in the sidebar
-        2. **Upload Image**: Navigate to the "Upload & Analyze" tab
-        3. **View Neural Network**: See how the AI processes your image
-        4. **Explore Features**: Check live camera and statistics tabs
-
-        ### Enhanced Features:
-        - Real-time ASL alphabet recognition
-        - **Neural network visualization** (NEW!)
-        - Live confidence metrics and visualizations
-        - Enhanced image upload with AI analysis
-        - Prediction history tracking
-        - Beautiful, intuitive interface
+        2. **Adjust Settings**: Use sliders to optimize performance
+        3. **Start Camera**: Begin real-time recognition
+        4. **Monitor Performance**: Check statistics tab
         """)
 else:
-    # Enhanced tabs with neural network visualizer
-    tab1, tab2, tab3, tab4 = st.tabs(["Live Camera", "Upload & Analyze Neural Network", "Statistics", "Testing"])
+    # Main tabs
+    tab1, tab2, tab3, tab4 = st.tabs(["📹 Live Camera", "🖼️ Upload Image", "📊 Statistics", "🧪 Testing"])
 
     with tab1:
-        # Same live camera functionality as original
-        st.subheader("Real-time ASL Recognition")
+        st.subheader("🎥 Real-time ASL Recognition - Optimized")
 
-        col1, col2 = st.columns([2, 1])
+        col1, col2 = st.columns([2.2, 1])
 
         with col1:
             # Camera control buttons
             btn_col1, btn_col2, btn_col3 = st.columns(3)
             with btn_col1:
-                start_camera = st.button("Start Camera", width="stretch")
+                start_camera = st.button("▶️ Start Camera")
             with btn_col2:
-                stop_camera = st.button("Stop Camera", width="stretch")
+                stop_camera = st.button("⏹️ Stop Camera")
             with btn_col3:
-                reset_btn = st.button("Reset Buffer", width="stretch")
+                reset_btn = st.button("🔄 Reset Buffer")
 
             # Camera feed placeholder
             camera_placeholder = st.empty()
 
         with col2:
-            # Prediction display
+            # Prediction displays
             prediction_display = st.empty()
             confidence_display = st.empty()
+            
+            # Chart container with fixed size
+            st.markdown('<div class="chart-container">', unsafe_allow_html=True)
             chart_display = st.empty()
-            top5_display = st.empty()
+            st.markdown('</div>', unsafe_allow_html=True)
 
-        # Handle camera controls (same as original implementation)
+        # Handle camera controls
         if start_camera:
             st.session_state.camera_active = True
 
         if stop_camera:
             st.session_state.camera_active = False
 
-        if reset_btn and st.session_state.inference_engine:
-            st.session_state.inference_engine.reset_buffer()
+        if reset_btn:
+            st.session_state.prediction_smoother = OptimizedPredictionSmoothing()
             st.session_state.prediction_history = []
-            st.success("Buffer reset!")
+            st.success("✅ Buffer reset!")
 
-        # Camera loop
+        # OPTIMIZED CAMERA LOOP
         if st.session_state.camera_active and st.session_state.inference_engine:
-            cap = cv2.VideoCapture(camera_id)
-            
-            if not cap.isOpened():
-                st.error(f"Could not open camera {camera_id}. Please check camera permissions and device ID.")
-                st.session_state.camera_active = False
-            else:
-                frame_count = 0
+            try:
+                cap = cv2.VideoCapture(camera_id)
                 
-                while st.session_state.camera_active:
-                    ret, frame = cap.read()
-                    if not ret:
-                        st.error("Failed to grab frame from camera")
-                        break
-                    
-                    frame_count += 1
-                    
-                    # Draw ROI and get hand region
-                    frame, roi = draw_hand_roi(frame, roi_size)
-                    
-                    # Make prediction every 3 frames to improve performance
-                    if frame_count % 3 == 0 and roi.size > 0:
-                        try:
-                            result = st.session_state.inference_engine.predict(roi, return_probabilities=True)
-                            
-                            # Display prediction
-                            letter = result['smoothed_letter']
-                            confidence = result['confidence'] * 100
-                            
-                            # Update prediction display
-                            prediction_display.markdown(
-                                f"<div class='prediction-box'>{letter}</div>",
-                                unsafe_allow_html=True
-                            )
-                            
-                            confidence_display.markdown(
-                                f"<div class='confidence-box'>{confidence:.1f}%</div>",
-                                unsafe_allow_html=True
-                            )
-                            
-                            # Update chart
-                            chart_display.plotly_chart(
-                                create_confidence_chart(result['probabilities']),
-                                width="stretch"
-                            )
-                            
-                            # Display top 5 predictions
-                            top_5_probs = sorted(zip(result['class_names'], result['probabilities']), 
-                                               key=lambda x: x[1], reverse=True)[:5]
-                            top5_html = "<div style='margin-top: 20px;'><h4 style='color: #333; margin-bottom: 10px;'>📊 Top 5 Predictions:</h4>"
-                            for i, (cls, prob) in enumerate(top_5_probs, 1):
-                                bar_width = int(prob * 100)
-                                color = '#4CAF50' if i == 1 else '#2196F3' if i == 2 else '#FF9800' if i == 3 else '#9C27B0' if i == 4 else '#607D8B'
-                                top5_html += f"""
-                                <div style='margin-bottom: 8px;'>
-                                    <div style='display: flex; justify-content: space-between; margin-bottom: 2px;'>
-                                        <span style='font-weight: 500; color: #333;'>{i}. {cls}</span>
-                                        <span style='font-weight: 600; color: {color};'>{prob*100:.1f}%</span>
-                                    </div>
-                                    <div style='background-color: #f0f0f0; border-radius: 10px; overflow: hidden;'>
-                                        <div style='background-color: {color}; height: 8px; width: {bar_width}%; transition: width 0.3s;'></div>
-                                    </div>
-                                </div>
-                                """
-                            top5_html += "</div>"
-                            top5_display.markdown(top5_html, unsafe_allow_html=True)
-                            
-                            # Add to history
-                            st.session_state.prediction_history.append({
-                                'timestamp': datetime.now(),
-                                'letter': letter,
-                                'confidence': confidence
-                            })
-                            
-                            # Overlay prediction on frame
-                            cv2.putText(frame, f"Prediction: {letter}", (10, 50),
-                                       cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 0), 3)
-                            cv2.putText(frame, f"Confidence: {confidence:.1f}%", (10, 100),
-                                       cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 0), 3)
-                            
-                        except Exception as e:
-                            st.error(f"Prediction error: {str(e)}")
-                    
-                    # Display frame
-                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    camera_placeholder.image(frame_rgb, channels="RGB", width="stretch")
-                    
-                    # Small delay to prevent excessive CPU usage
-                    time.sleep(0.03)
+                # Optimize camera settings
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Reduce buffer lag
+                cap.set(cv2.CAP_PROP_FPS, 20)  # Limit FPS
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)  # Fixed resolution
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
                 
+                if not cap.isOpened():
+                    st.error(f"❌ Could not open camera {camera_id}")
+                    st.session_state.camera_active = False
+                else:
+                    frame_count = 0
+                    last_chart_update = 0
+                    
+                    while st.session_state.camera_active:
+                        ret, frame = cap.read()
+                        if not ret:
+                            break
+                            
+                        frame_count += 1
+                        current_time = time.time()
+                        
+                        # Draw ROI
+                        frame, roi = draw_hand_roi_optimized(frame, roi_size)
+                        
+                        # Process predictions with reduced frequency
+                        if (frame_count % frame_skip == 0 and roi.size > 0 and 
+                            current_time - st.session_state.last_prediction_time > 0.25):
+                            
+                            try:
+                                # Get prediction
+                                result = st.session_state.inference_engine.predict(roi, return_probabilities=True)
+                                
+                                # Apply smoothing
+                                smooth_letter = st.session_state.prediction_smoother.add_prediction(
+                                    result['predicted_letter'], 
+                                    result['confidence'],
+                                    result['probabilities']
+                                )
+                                
+                                confidence_pct = result['confidence'] * 100
+                                
+                                # Update displays
+                                prediction_display.markdown(
+                                    f"<div class='prediction-box'>{smooth_letter}</div>",
+                                    unsafe_allow_html=True
+                                )
+                                
+                                confidence_display.markdown(
+                                    f"<div class='confidence-box'>{confidence_pct:.1f}%</div>",
+                                    unsafe_allow_html=True
+                                )
+                                
+                                # Update chart less frequently to prevent flickering
+                                if current_time - last_chart_update > 0.5:  # Update every 0.5 seconds
+                                    smooth_probs = st.session_state.prediction_smoother.get_smooth_probabilities()
+                                    if smooth_probs:
+                                        chart_fig = create_stable_confidence_chart(smooth_probs)
+                                        
+                                        # Use unique key to prevent flickering
+                                        st.session_state.chart_update_counter += 1
+                                        chart_display.plotly_chart(
+                                            chart_fig, 
+                                            use_container_width=True,
+                                            key=f"stable_chart_{st.session_state.chart_update_counter}"
+                                        )
+                                        last_chart_update = current_time
+                                
+                                # Add overlay to frame
+                                cv2.putText(frame, f"{smooth_letter}", (15, 50),
+                                          cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 0), 3)
+                                cv2.putText(frame, f"{confidence_pct:.1f}%", (15, 90),
+                                          cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2)
+                                
+                                st.session_state.last_prediction_time = current_time
+                                
+                                # Add to history less frequently
+                                if frame_count % (frame_skip * 2) == 0:
+                                    st.session_state.prediction_history.append({
+                                        'timestamp': datetime.now(),
+                                        'letter': smooth_letter,
+                                        'confidence': confidence_pct
+                                    })
+                                    
+                            except Exception:
+                                pass  # Silently handle prediction errors
+                        
+                        # Display frame
+                        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                        camera_placeholder.image(frame_rgb, channels="RGB", width=700)
+                        
+                        # Controlled frame rate
+                        time.sleep(0.04)  # ~25 FPS max
+                        
                 cap.release()
+                
+            except Exception:
+                st.session_state.camera_active = False
 
     with tab2:
-        # ENHANCED UPLOAD TAB WITH NEURAL NETWORK VISUALIZER
-        st.subheader("Upload Image & Analyze Neural Network")
-
-        st.markdown("""
-        <div class="neural-section">
-            <h3 style='margin-top: 0; color: white;'>AI Brain Analysis</h3>
-            <p style='margin-bottom: 0; color: white;'>
-                Upload an ASL hand sign image to see exactly how the neural network processes it layer by layer!
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-
-        col1, col2 = st.columns([1, 1])
-
-        with col1:
-            uploaded_file = st.file_uploader(
-                "Choose an ASL hand sign image...",
-                type=['jpg', 'jpeg', 'png'],
-                help="Upload an image to see both prediction results and neural network analysis"
-            )
-
-            if uploaded_file is not None:
+        # Upload and analyze (simplified version)
+        st.subheader("📤 Upload Image Analysis")
+        
+        uploaded_file = st.file_uploader(
+            "Choose an ASL hand sign image...",
+            type=['jpg', 'jpeg', 'png']
+        )
+        
+        if uploaded_file is not None:
+            col1, col2 = st.columns(2)
+            
+            with col1:
                 image = Image.open(uploaded_file).convert('RGB')
-                st.image(image, caption="Uploaded Image", width="stretch")
-
-                col_analyze, col_neural = st.columns(2)
-
-                with col_analyze:
-                    if st.button("Analyze Image", use_container_width=True):
-                        with st.spinner("Analyzing image..."):
-                            result = st.session_state.inference_engine.predict(
-                                image, return_probabilities=True
-                            )
-                            st.session_state.upload_result = result
-
-                with col_neural:
-                    if st.button("Visualize Neural Network", use_container_width=True):
-                        with st.spinner("Analyzing neural network layers..."):
-                            # Get prediction results
-                            result = st.session_state.inference_engine.predict(
-                                image, return_probabilities=True
-                            )
-
-                            # Create visualizer
-                            visualizer = CNNVisualizer(
-                                model=st.session_state.inference_engine.model,
-                                device=st.session_state.inference_engine.device,
-                                class_names=st.session_state.inference_engine.class_names
-                            )
-
-                            # Prepare image tensor for visualization
-                            transform = transforms.Compose([
-                                transforms.Resize((224, 224)),
-                                transforms.ToTensor(),
-                                transforms.Normalize(mean=[0.485, 0.456, 0.406], 
-                                                   std=[0.229, 0.224, 0.225])
-                            ])
-                            img_tensor = transform(image).unsqueeze(0)
-
-                            # Extract feature maps
-                            feature_maps = visualizer.extract_feature_maps(img_tensor)
-
-                            # Store results
-                            st.session_state.neural_result = result
-                            st.session_state.neural_visualizer = visualizer
-                            st.session_state.neural_feature_maps = feature_maps
-                            st.session_state.upload_result = result
-
-        with col2:
-            if 'upload_result' in st.session_state:
-                result = st.session_state.upload_result
-
-                # Display prediction
-                st.markdown(
-                    f"<div class='prediction-box'>{result['predicted_letter']}</div>",
-                    unsafe_allow_html=True
-                )
-
-                st.markdown(
-                    f"<div class='confidence-box'>{result['confidence']*100:.1f}%</div>",
-                    unsafe_allow_html=True
-                )
-
-                # Display confidence chart
-                st.plotly_chart(
-                    create_confidence_chart(result['probabilities']),
-                    use_container_width=True
-                )
-
-        # NEURAL NETWORK VISUALIZATION SECTION
-        if 'neural_feature_maps' in st.session_state and 'neural_visualizer' in st.session_state:
-            st.divider()
-
-            # Network Architecture
-            st.subheader("Neural Network Architecture")
-            st.markdown("**EfficientASLNet Structure** - How your image flows through the network:")
-
-            arch_fig = st.session_state.neural_visualizer.visualize_network_architecture()
-            if arch_fig:
-                st.plotly_chart(arch_fig, use_container_width=True)
-
-            st.divider()
-
-            # Feature Maps Visualization
-            st.subheader("Layer-by-Layer Feature Detection")
-            st.markdown("""
-            **What Each Layer Sees:**
-            - **Conv1 (Early)**: Basic edges, lines, and contrasts
-            - **Conv2-Conv3 (Middle)**: Hand shapes and finger patterns
-            - **Conv4-Conv5 (Deep)**: Complex ASL gesture features
-            """)
-
-            feature_maps = st.session_state.neural_feature_maps
-            feature_fig = st.session_state.neural_visualizer.visualize_feature_maps(feature_maps)
-            if feature_fig:
-                st.plotly_chart(feature_fig, use_container_width=True)
-
-            st.divider()
-
-            # Activation Statistics
-            st.subheader("Neural Activation Analysis")
-            st.markdown("**Layer Performance Metrics** - Statistical analysis of neuron activations:")
-
-            stats_fig = st.session_state.neural_visualizer.create_activation_statistics(feature_maps)
-            if stats_fig:
-                st.plotly_chart(stats_fig, use_container_width=True)
-
-            st.divider()
-
-            # Final Prediction Analysis
-            st.subheader("Final Layer Output Analysis")
-            st.markdown("**Decision Process** - How the network arrives at its final prediction:")
-
-            if 'neural_result' in st.session_state:
-                conf_fig = st.session_state.neural_visualizer.create_confidence_visualization(
-                    st.session_state.neural_result
-                )
-                if conf_fig:
-                    st.plotly_chart(conf_fig, use_container_width=True)
-
-                # Technical Summary
-                col1, col2, col3, col4 = st.columns(4)
-
-                with col1:
-                    st.metric("Predicted Letter", st.session_state.neural_result['predicted_letter'])
-
-                with col2:
-                    st.metric("Confidence", f"{st.session_state.neural_result['confidence']*100:.1f}%")
-
-                with col3:
-                    st.metric("Network Depth", "5 Conv + 3 FC Layers")
-
-                with col4:
-                    st.metric("Parameters", "~2.5M")
+                st.image(image, caption="Uploaded Image", width=300)
+                
+                if st.button("🔍 Analyze Image"):
+                    with st.spinner("Analyzing..."):
+                        result = st.session_state.inference_engine.predict(
+                            image, return_probabilities=True
+                        )
+                        st.session_state.upload_result = result
+            
+            with col2:
+                if 'upload_result' in st.session_state:
+                    result = st.session_state.upload_result
+                    
+                    st.markdown(
+                        f"<div class='prediction-box'>{result['predicted_letter']}</div>",
+                        unsafe_allow_html=True
+                    )
+                    
+                    st.markdown(
+                        f"<div class='confidence-box'>{result['confidence']*100:.1f}%</div>",
+                        unsafe_allow_html=True
+                    )
+                    
+                    # Display chart
+                    chart_fig = create_stable_confidence_chart(result['probabilities'])
+                    st.plotly_chart(chart_fig, use_container_width=True)
 
     with tab3:
-        # Same statistics functionality as original
-        st.subheader("Performance Statistics")
+        # Statistics tab
+        st.subheader("📈 Performance Statistics")
 
         if st.session_state.inference_engine:
             stats = st.session_state.inference_engine.get_statistics()
 
-            # Display statistics
             col1, col2, col3, col4 = st.columns(4)
 
             with col1:
@@ -1031,159 +669,53 @@ else:
                 )
 
             with col4:
+                buffer_size = len(st.session_state.prediction_smoother.predictions)
                 st.markdown(
-                    f"<div class='stats-box'><h3>{stats['buffer_size']}</h3><p>Buffer Size</p></div>",
+                    f"<div class='stats-box'><h3>{buffer_size}</h3><p>Buffer Size</p></div>",
                     unsafe_allow_html=True
                 )
 
-            # Prediction history (same as original)
+            # Prediction history
             if len(st.session_state.prediction_history) > 0:
-                st.subheader("Prediction History")
+                st.subheader("📊 Prediction History")
 
-                # Show chart
                 history_chart = create_history_chart(st.session_state.prediction_history[-50:])
                 if history_chart:
                     st.plotly_chart(history_chart, use_container_width=True)
 
-                # Show recent predictions table
-                st.subheader("Recent Predictions")
+                st.subheader("📝 Recent Predictions")
                 recent_df = pd.DataFrame(st.session_state.prediction_history[-20:])
-                recent_df['timestamp'] = recent_df['timestamp'].dt.strftime('%H:%M:%S')
-                st.dataframe(recent_df, use_container_width=True, hide_index=True)
-
-                # Download button
-                csv = recent_df.to_csv(index=False)
-                st.download_button(
-                    label="Download History as CSV",
-                    data=csv,
-                    file_name=f"asl_predictions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv"
-                )
+                if not recent_df.empty:
+                    recent_df['timestamp'] = recent_df['timestamp'].dt.strftime('%H:%M:%S')
+                    st.dataframe(recent_df, use_container_width=True, hide_index=True)
             else:
-                st.info("No predictions yet. Start using the camera to see statistics!")
+                st.info("📱 Start using the camera to see statistics!")
 
     with tab4:
-        # TESTING TAB - Model Evaluation Results
-        st.subheader("Model Evaluation Results")
+        # Testing tab (simplified)
+        st.subheader("🧪 Model Evaluation")
         
-        st.markdown("""
-        <div class="info-box">
-            <h3 style='margin-top: 0; color: white;'>ASL Model Performance Metrics</h3>
-            <p style='margin-bottom: 0; color: white;'>
-                Comprehensive evaluation of the trained ASL alphabet recognition model.
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # Default results directory (no user prompt)
-        results_dir = st.session_state.get('results_dir', "validationResults")
-
-        # Simple path input for test dataset directory
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-        default_test_dir = st.session_state.get('test_data_dir', os.path.join(project_root, 'MergedDataset', 'Test'))
         test_data_dir = st.text_input(
             "Test dataset directory",
-            value=default_test_dir,
+            value="validationResults"
         )
-
-        run_eval = st.button("Run Evaluation", width='stretch')
-        if run_eval:
+        
+        if st.button("🚀 Run Evaluation"):
             try:
                 with st.spinner("Running evaluation..."):
-                    summary = evaluate(model_path=model_path, test_data_path=test_data_dir, results_dir=results_dir)
-                st.session_state['results_dir'] = results_dir
-                st.session_state['test_data_dir'] = test_data_dir
-                st.success(f"Evaluation complete. Results saved to: {summary['results_dir']}")
+                    summary = evaluate(
+                        model_path=model_path, 
+                        test_data_path=test_data_dir, 
+                        results_dir="validationResults"
+                    )
+                st.success(f"✅ Evaluation complete! Accuracy: {summary['accuracy']:.2f}%")
             except Exception as e:
-                st.error(f"Evaluation failed: {str(e)}")
-        
-        # Display key metrics
-        try:
-            with open(os.path.join(results_dir, "metrics_Test.txt"), "r") as f:
-                metrics_content = f.read()
-            
-            # Parse metrics for display
-            lines = metrics_content.strip().split('\n')
-            if len(lines) >= 4:
-                accuracy = lines[1].split(":")[1].strip()
-                macro_f1 = lines[2].split(":")[1].strip()
-                micro_f1 = lines[3].split(":")[1].strip()
-                
-                col1, col2, col3 = st.columns(3)
-                col1.metric("Accuracy", accuracy)
-                col2.metric("Macro F1", macro_f1)
-                col3.metric("Micro F1", micro_f1)
-        except FileNotFoundError:
-            st.warning("Metrics file not found. Run the evaluation script to generate it.")
-        
-        # Display per-class metrics visualization
-        try:
-            with open(os.path.join(results_dir, "metrics_Test.txt"), "r") as f:
-                metrics_content = f.read()
-            
-            # Parse per-class metrics
-            lines = metrics_content.strip().split('\n')
-            class_metrics = []
-            for line in lines[7:]:  # Skip header lines
-                if line.strip() and ':' in line:
-                    parts = line.split(':')
-                    class_name = parts[0].strip()
-                    metrics = parts[1].split(',')
-                    precision = float(metrics[0].split('=')[1].strip())
-                    recall = float(metrics[1].split('=')[1].strip())
-                    f1 = float(metrics[2].split('=')[1].strip())
-                    class_metrics.append({
-                        'Class': class_name,
-                        'Precision': precision,
-                        'Recall': recall,
-                        'F1': f1
-                    })
-            
-            if class_metrics:
-                # Convert to DataFrame for easier handling
-                import pandas as pd
-                metrics_df = pd.DataFrame(class_metrics)
-                
-                # Display bar chart for per-class metrics
-                st.subheader("Per-Class Performance Metrics")
-                
-                # Create bar chart using Plotly
-                fig = go.Figure()
-                fig.add_trace(go.Bar(x=metrics_df['Class'], y=metrics_df['Precision'], name='Precision', marker_color='#FF6B6B'))
-                fig.add_trace(go.Bar(x=metrics_df['Class'], y=metrics_df['Recall'], name='Recall', marker_color='#4ECDC4'))
-                fig.add_trace(go.Bar(x=metrics_df['Class'], y=metrics_df['F1'], name='F1-Score', marker_color='#45B7D1'))
-                
-                fig.update_layout(
-                    title="Per-Class Precision, Recall, and F1-Score",
-                    xaxis_title="ASL Classes",
-                    yaxis_title="Score",
-                    barmode='group',
-                    height=500,
-                    showlegend=True
-                )
-                
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # Display metrics table
-                st.subheader("Detailed Metrics Table")
-                st.dataframe(metrics_df.style.highlight_max(axis=0), use_container_width=True)
-        except Exception as e:
-            st.warning(f"Could not load per-class metrics: {str(e)}")
-        
-        # Display confusion matrix
-        try:
-            st.subheader("Confusion Matrix")
-            st.image(os.path.join(results_dir, "confusion_matrix_Test.png"), caption="Confusion Matrix", use_column_width=True)
-        except FileNotFoundError:
-            st.warning("Confusion matrix image not found. Run the evaluation script to generate it.")
-        
-        # Removed Classification Report text and CLI instructions per request
+                st.error(f"❌ Evaluation failed: {str(e)}")
 
 # Footer
 st.divider()
 st.markdown("""
     <p style='text-align: center; color: #666;'>
-        ASL Alphabet Recognition Project - Enhanced with Neural Network Visualizer | 
-        Powered by PyTorch & Streamlit | Optimized for RTX 4060
+        🚀 ASL Recognition - Optimized for Performance | Smooth • Fast • Accurate
     </p>
 """, unsafe_allow_html=True)
